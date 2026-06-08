@@ -37,11 +37,12 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
     let active = true;
     (async () => {
       try {
-        const mod = await import("leaflet");
-        // @ts-expect-error - vite resolves css side-effect
+        // @ts-ignore - leaflet ships without bundled types
+        const mod: any = await import("leaflet");
+        // @ts-ignore - vite resolves css side-effect
         await import("leaflet/dist/leaflet.css");
         if (!active) return;
-        (window as unknown as { L: unknown }).L = (mod as { default?: unknown }).default ?? mod;
+        (window as unknown as { L: unknown }).L = mod.default ?? mod;
         setLeafletReady(true);
       } catch (err) {
         console.warn("Falha ao carregar Leaflet:", err);
