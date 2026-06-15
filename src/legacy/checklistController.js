@@ -533,6 +533,7 @@ async function buildPayload() {
     location: {
       latitude: getInputValue("locationLatitude"),
       longitude: getInputValue("locationLongitude"),
+      capturedAt: locationCapturedAt || "",
     },
     data: el("dataInicio")?.value || "",
 
