@@ -1083,7 +1083,16 @@ async function gerarPdfDoPrintArea(nomeBase) {
         margin: 8,
         filename,
         image: { type: "jpeg", quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          onclone: (doc) => {
+            const s = doc.createElement("style");
+            s.textContent = `#printArea, #printArea * { color: #000 !important; background-color: transparent !important; border-color: #000 !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; } #printArea { background: #fff !important; }`;
+            doc.head.appendChild(s);
+          },
+        },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: { mode: ["css", "legacy"] },
       })
