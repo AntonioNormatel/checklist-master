@@ -1392,6 +1392,11 @@ body {
    IMPRESSÃO
 ========================= */
 
+@page {
+  size: A4 portrait;
+  margin: 8mm;
+}
+
 @media print {
   body * {
     visibility: hidden !important;
@@ -1406,7 +1411,9 @@ body {
     position: absolute;
     left: 0;
     top: 0;
-    width: 100% !important;
+    transform: scale(0.55);
+    transform-origin: top left;
+    width: calc(100% / 0.55) !important;
   }
 
   .no-print {
@@ -1428,9 +1435,33 @@ body {
     box-shadow: none !important;
   }
 
-  @page {
-    margin: 10mm;
+  .print-only {
+    display: block !important;
   }
+
+  .print-imagens-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .print-imagens-grid img {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 220px;
+    object-fit: contain;
+    border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+
+  .print-localizacao a {
+    color: #1a4ea8 !important;
+    text-decoration: underline;
+  }
+}
+
+.print-only {
+  display: none;
 }
 
 .fotos-preview {
