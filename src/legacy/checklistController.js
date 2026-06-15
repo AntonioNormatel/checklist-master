@@ -326,7 +326,7 @@ function addImagemInput() {
   const div = document.createElement("div");
   div.className = "foto-item";
   div.innerHTML = `
-    <input type="file" accept="image/*" class="imagem-file" />
+    <input type="file" accept="image/*" class="imagem-file no-print" />
     <button class="btn btn-light foto-remove-btn no-print" type="button">Remover</button>
   `;
   container.appendChild(div);
@@ -334,6 +334,25 @@ function addImagemInput() {
   const removeBtn = div.querySelector(".foto-remove-btn");
   removeBtn.addEventListener("click", () => {
     div.remove();
+    scheduleDraftSave();
+  });
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    try {
+      const base64 = await fileToBase64(file);
+      div.innerHTML = `
+        <img src="${base64}" />
+        <button class="btn btn-light foto-remove-btn no-print" type="button">Remover</button>
+      `;
+      div.querySelector(".foto-remove-btn").addEventListener("click", () => {
+        div.remove();
+        scheduleDraftSave();
+      });
+      scheduleDraftSave();
+    } catch (e) {
+      alert("Falha ao ler imagem: " + (e?.message || e));
+    }
   });
 }
 
