@@ -873,6 +873,7 @@ function clearForm() {
   }
 
   document.querySelector(".fotos-preview").innerHTML = "";
+  locationCapturedAt = "";
 
   // Limpar mapa
   if (locationMap) {
