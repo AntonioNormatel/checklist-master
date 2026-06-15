@@ -679,6 +679,7 @@ function applyPayload(data) {
   setInputValue("localAtividade", data.localAtividade || "");
   setInputValue("locationLatitude", data?.location?.latitude || "");
   setInputValue("locationLongitude", data?.location?.longitude || "");
+  locationCapturedAt = data?.location?.capturedAt || "";
   refreshLocationMap();
   if (el("dataInicio")) el("dataInicio").value = data.data || "";
 
