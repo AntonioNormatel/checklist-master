@@ -1397,6 +1397,25 @@ body {
   margin: 8mm;
 }
 
+/* Aplicado durante a geração de PDF (html2pdf) para esconder elementos no-print
+   e exibir os blocos print-only, já que @media print não atua no html2canvas. */
+body.pdf-export .no-print { display: none !important; }
+body.pdf-export .print-only,
+body.pdf-export .print-only-block { display: block !important; }
+body.pdf-export .print-imagens-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 8px !important;
+}
+body.pdf-export .print-imagens-grid img {
+  width: 100% !important;
+  height: auto !important;
+}
+body.pdf-export #printArea {
+  background: #fff !important;
+}
+
+
 @media print {
   body * {
     visibility: hidden !important;
