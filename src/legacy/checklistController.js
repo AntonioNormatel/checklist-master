@@ -1102,17 +1102,44 @@ function modalImprimir() {
   );
 
   el("m_cancel").onclick = closeModal;
-  el("m_print").onclick = () => {
+  el("m_print").onclick = async () => {
     closeModal();
     const cleanup = buildPrintExtras();
-    const after = () => {
+    try {
+      await gerarPdfDoPrintArea("checklist-critico");
+    } catch (e) {
+      console.error(e);
+      alert("Não foi possível gerar o PDF: " + (e?.message || e));
+    } finally {
       cleanup();
-      window.removeEventListener("afterprint", after);
-    };
-    window.addEventListener("afterprint", after);
-    window.print();
-    setTimeout(cleanup, 2000);
+    }
   };
+}
+
+async function gerarPdfDoPrintArea(nomeBase) {
+  const area = document.getElementById("printArea");
+  if (!area) throw new Error("Área de impressão não encontrada.");
+  const { default: html2pdf } = await import("html2pdf.js");
+  const idTxt = (document.getElementById("currentIdTxt")?.textContent || "").trim();
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  const safeId = idTxt && idTxt !== "—" ? `-${idTxt}` : "";
+  const filename = `${nomeBase}${safeId}-${stamp}.pdf`;
+  document.body.classList.add("pdf-export");
+  try {
+    await html2pdf()
+      .set({
+        margin: 8,
+        filename,
+        image: { type: "jpeg", quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+        pagebreak: { mode: ["css", "legacy"] },
+      })
+      .from(area)
+      .save();
+  } finally {
+    document.body.classList.remove("pdf-export");
+  }
 }
 
 // ===== Draft localStorage =====
