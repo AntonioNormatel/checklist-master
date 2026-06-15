@@ -53,6 +53,10 @@ let currentId = null;
 let etapaCount = 0;
 let locationMap = null;
 let locationMarker = null;
+let locationCapturedAt = "";
+const DRAFT_KEY = `checklist_draft_simples_${AUTH.id}`;
+let draftSaveTimer = null;
+let draftLoaded = false;
 
 userTxt.textContent = `${AUTH.name} (${AUTH.email})`;
 currentIdTxt.textContent = "—";
@@ -89,7 +93,9 @@ function setLocationFields(position) {
   if (!position?.coords) return;
   setInputValue("locationLatitude", String(position.coords.latitude.toFixed(6)));
   setInputValue("locationLongitude", String(position.coords.longitude.toFixed(6)));
+  locationCapturedAt = new Date().toISOString();
   updateLocationMap(position.coords.latitude, position.coords.longitude);
+  scheduleDraftSave();
 }
 
 async function fetchLocation() {
@@ -346,7 +352,7 @@ function addImagemInput() {
   const div = document.createElement("div");
   div.className = "foto-item";
   div.innerHTML = `
-    <input type="file" accept="image/*" class="imagem-file" />
+    <input type="file" accept="image/*" class="imagem-file no-print" />
     <button class="btn btn-light foto-remove-btn no-print" type="button">Remover</button>
   `;
   container.appendChild(div);
@@ -354,6 +360,25 @@ function addImagemInput() {
   const removeBtn = div.querySelector(".foto-remove-btn");
   removeBtn.addEventListener("click", () => {
     div.remove();
+    scheduleDraftSave();
+  });
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files && fileInput.files[0];
+    if (!file) return;
+    try {
+      const base64 = await fileToBase64(file);
+      div.innerHTML = `
+        <img src="${base64}" />
+        <button class="btn btn-light foto-remove-btn no-print" type="button">Remover</button>
+      `;
+      div.querySelector(".foto-remove-btn").addEventListener("click", () => {
+        div.remove();
+        scheduleDraftSave();
+      });
+      scheduleDraftSave();
+    } catch (e) {
+      alert("Falha ao ler imagem: " + (e?.message || e));
+    }
   });
 }
 
@@ -533,6 +558,7 @@ async function buildPayload() {
     location: {
       latitude: getInputValue("locationLatitude"),
       longitude: getInputValue("locationLongitude"),
+      capturedAt: locationCapturedAt || "",
     },
     dataInicio: el("dataInicio")?.value || "",
     dataFim: el("dataFim")?.value || "",
@@ -659,6 +685,7 @@ function applyPayload(data) {
   setInputValue("localAtividade", data.localAtividade || "");
   setInputValue("locationLatitude", data?.location?.latitude || "");
   setInputValue("locationLongitude", data?.location?.longitude || "");
+  locationCapturedAt = data?.location?.capturedAt || "";
   refreshLocationMap();
 
   if (el("dataInicio")) el("dataInicio").value = data.dataInicio || "";
@@ -807,6 +834,7 @@ function clearForm() {
   }
 
   document.querySelector(".fotos-preview").innerHTML = "";
+  locationCapturedAt = "";
 }
 
 async function apiRequest(method, path, body) {
@@ -971,6 +999,50 @@ async function modalMeusChecklists() {
   loadList().catch((e) => alert(e.message || "Erro ao listar."));
 }
 
+const LOCATION_NEEDLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2 L15.2 12 L12 10 L8.8 12 Z" /><circle cx="12" cy="14.2" r="2" /></svg>`;
+
+function buildPrintExtras() {
+  const printArea = document.getElementById("printArea");
+  if (!printArea) return () => {};
+
+  const imgs = Array.from(document.querySelectorAll(".fotos-preview img")).map((i) => i.src);
+  let imgsSection = null;
+  if (imgs.length) {
+    imgsSection = document.createElement("section");
+    imgsSection.className = "form-block tight print-only-block";
+    imgsSection.innerHTML = `
+      <div class="block-title">Imagens anexadas</div>
+      <div class="print-imagens-grid">
+        ${imgs.map((src) => `<img src="${src}" alt="Imagem anexada" />`).join("")}
+      </div>
+    `;
+    printArea.appendChild(imgsSection);
+  }
+
+  const lat = getInputValue("locationLatitude");
+  const lng = getInputValue("locationLongitude");
+  let locSection = null;
+  if (lat && lng) {
+    const ts = locationCapturedAt
+      ? new Date(locationCapturedAt).toLocaleString("pt-BR")
+      : "—";
+    locSection = document.createElement("section");
+    locSection.className = "form-block tight print-only-block print-localizacao";
+    locSection.innerHTML = `
+      <div class="block-title">${LOCATION_NEEDLE_SVG} Localização</div>
+      <div>Latitude: <b>${lat}</b> &nbsp;|&nbsp; Longitude: <b>${lng}</b></div>
+      <div>Capturado em: <b>${ts}</b></div>
+      <div><a href="https://www.google.com/maps?q=${encodeURIComponent(lat + "," + lng)}" target="_blank" rel="noopener">https://www.google.com/maps?q=${lat},${lng}</a></div>
+    `;
+    printArea.appendChild(locSection);
+  }
+
+  return () => {
+    if (imgsSection) imgsSection.remove();
+    if (locSection) locSection.remove();
+  };
+}
+
 function modalImprimir() {
   openModal(
     "Imprimir checklist simples",
@@ -984,8 +1056,53 @@ function modalImprimir() {
   el("m_cancel").onclick = closeModal;
   el("m_print").onclick = () => {
     closeModal();
+    const cleanup = buildPrintExtras();
+    const after = () => {
+      cleanup();
+      window.removeEventListener("afterprint", after);
+    };
+    window.addEventListener("afterprint", after);
     window.print();
+    setTimeout(cleanup, 2000);
   };
+}
+
+// ===== Draft localStorage =====
+async function saveDraft() {
+  try {
+    if (currentId) return;
+    const payload = await buildPayload();
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+  } catch (e) {
+    console.warn("Falha ao salvar rascunho:", e?.message || e);
+  }
+}
+
+function scheduleDraftSave() {
+  if (!draftLoaded) return;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer = setTimeout(() => {
+    saveDraft();
+  }, 500);
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {}
+}
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    applyPayload(data);
+    return true;
+  } catch (e) {
+    console.warn("Falha ao carregar rascunho:", e?.message || e);
+    return false;
+  }
 }
 
 async function saveChecklist() {
@@ -1018,12 +1135,14 @@ async function saveChecklist() {
       currentIdTxt.textContent = payload.numSolicitacao || "—";
       showStatus("ok", `Checklist simples salvo com sucesso. Solicitação: ${payload.numSolicitacao}`);
     }
+    clearDraft();
   } catch (e) {
     showStatus("err", e.message || "Erro ao salvar.");
   }
 }
 
 async function sair() {
+  clearDraft();
   await signOut();
   navigate("/");
 }
@@ -1038,6 +1157,7 @@ el("btnNovo").addEventListener("click", () => {
   currentId = null;
   currentIdTxt.textContent = "—";
   clearForm();
+  clearDraft();
   clearStatus();
   showStatus("ok", "Novo checklist simples iniciado.");
 });
@@ -1051,6 +1171,24 @@ if (btnSairNav) {
     sair();
   });
 }
+
+if (!currentId) {
+  loadDraft();
+}
+draftLoaded = true;
+
+document.addEventListener("input", (e) => {
+  const tag = e.target?.tagName;
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+    scheduleDraftSave();
+  }
+});
+document.addEventListener("change", (e) => {
+  const tag = e.target?.tagName;
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+    scheduleDraftSave();
+  }
+});
 
   return () => {};
 }
