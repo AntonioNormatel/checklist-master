@@ -93,7 +93,9 @@ function setLocationFields(position) {
   if (!position?.coords) return;
   setInputValue("locationLatitude", String(position.coords.latitude.toFixed(6)));
   setInputValue("locationLongitude", String(position.coords.longitude.toFixed(6)));
+  locationCapturedAt = new Date().toISOString();
   updateLocationMap(position.coords.latitude, position.coords.longitude);
+  scheduleDraftSave();
 }
 
 async function fetchLocation() {
