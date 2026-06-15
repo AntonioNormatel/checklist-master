@@ -53,6 +53,10 @@ let currentId = null;
 let etapaCount = 0;
 let locationMap = null;
 let locationMarker = null;
+let locationCapturedAt = "";
+const DRAFT_KEY = `checklist_draft_simples_${AUTH.id}`;
+let draftSaveTimer = null;
+let draftLoaded = false;
 
 userTxt.textContent = `${AUTH.name} (${AUTH.email})`;
 currentIdTxt.textContent = "—";
