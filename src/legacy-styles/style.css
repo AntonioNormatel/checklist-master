@@ -1506,3 +1506,85 @@ body {
   width: 240px;
   padding: 12px 0;
 }
+
+/* =========================
+   AJUSTES PARA TELAS 21:9 (celulares ultra-altos)
+   ========================= */
+
+/* Garante que o footer fique sempre no rodapé em telas altas */
+.site-main {
+  flex: 1 0 auto;
+}
+
+.site-footer {
+  flex-shrink: 0;
+}
+
+/* Telas estreitas e muito altas (proporção >= 19.5:9, inclui 21:9) */
+@media (max-aspect-ratio: 9 / 18) and (max-width: 540px) {
+  body {
+    min-height: 100dvh;
+  }
+
+  .site-header {
+    padding: 8px 10px;
+  }
+
+  .logo {
+    height: 32px;
+  }
+
+  .company-title {
+    font-size: 13px;
+  }
+
+  .company-subtitle {
+    font-size: 10px;
+  }
+
+  .site-main {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .auth-page {
+    align-items: center;
+  }
+
+  .auth-card {
+    grid-template-columns: 1fr;
+    border-radius: 14px;
+  }
+
+  .auth-left {
+    padding: 16px;
+    gap: 6px;
+  }
+
+  .auth-title {
+    font-size: 18px;
+  }
+
+  .auth-sub {
+    margin-bottom: 6px;
+  }
+
+  .auth-right {
+    padding: 14px;
+  }
+
+  .tab-panel .lbl {
+    margin-top: 6px;
+  }
+
+  .btn.full {
+    margin-top: 10px;
+  }
+
+  .site-footer {
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+}
