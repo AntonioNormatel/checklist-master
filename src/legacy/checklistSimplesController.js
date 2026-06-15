@@ -834,6 +834,7 @@ function clearForm() {
   }
 
   document.querySelector(".fotos-preview").innerHTML = "";
+  locationCapturedAt = "";
 }
 
 async function apiRequest(method, path, body) {
