@@ -1,4 +1,4 @@
-import { locationNeedleIconMarkup } from "../components/LocationNeedleIcon.jsx";
+import { locationNeedleIconMarkup } from "../components/LocationNeedleIcon";
 import { createChecklist, listChecklists, updateChecklist } from "../lib/api";
 
 export function initChecklistSimplesController({ user, navigate, signOut }) {
