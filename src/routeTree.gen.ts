@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RedefinirSenhaRouteImport } from './routes/redefinir-senha'
 import { Route as MenuRouteImport } from './routes/menu'
 import { Route as ChecklistSimplesRouteImport } from './routes/checklist-simples'
 import { Route as ChecklistRouteImport } from './routes/checklist'
 import { Route as IndexRouteImport } from './routes/index'
 
+const RedefinirSenhaRoute = RedefinirSenhaRouteImport.update({
+  id: '/redefinir-senha',
+  path: '/redefinir-senha',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MenuRoute = MenuRouteImport.update({
   id: '/menu',
   path: '/menu',
@@ -40,12 +46,14 @@ export interface FileRoutesByFullPath {
   '/checklist': typeof ChecklistRoute
   '/checklist-simples': typeof ChecklistSimplesRoute
   '/menu': typeof MenuRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/checklist': typeof ChecklistRoute
   '/checklist-simples': typeof ChecklistSimplesRoute
   '/menu': typeof MenuRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,25 @@ export interface FileRoutesById {
   '/checklist': typeof ChecklistRoute
   '/checklist-simples': typeof ChecklistSimplesRoute
   '/menu': typeof MenuRoute
+  '/redefinir-senha': typeof RedefinirSenhaRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/checklist' | '/checklist-simples' | '/menu'
+  fullPaths:
+    | '/'
+    | '/checklist'
+    | '/checklist-simples'
+    | '/menu'
+    | '/redefinir-senha'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/checklist' | '/checklist-simples' | '/menu'
-  id: '__root__' | '/' | '/checklist' | '/checklist-simples' | '/menu'
+  to: '/' | '/checklist' | '/checklist-simples' | '/menu' | '/redefinir-senha'
+  id:
+    | '__root__'
+    | '/'
+    | '/checklist'
+    | '/checklist-simples'
+    | '/menu'
+    | '/redefinir-senha'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,10 +87,18 @@ export interface RootRouteChildren {
   ChecklistRoute: typeof ChecklistRoute
   ChecklistSimplesRoute: typeof ChecklistSimplesRoute
   MenuRoute: typeof MenuRoute
+  RedefinirSenhaRoute: typeof RedefinirSenhaRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/redefinir-senha': {
+      id: '/redefinir-senha'
+      path: '/redefinir-senha'
+      fullPath: '/redefinir-senha'
+      preLoaderRoute: typeof RedefinirSenhaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/menu': {
       id: '/menu'
       path: '/menu'
@@ -107,6 +135,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChecklistRoute: ChecklistRoute,
   ChecklistSimplesRoute: ChecklistSimplesRoute,
   MenuRoute: MenuRoute,
+  RedefinirSenhaRoute: RedefinirSenhaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

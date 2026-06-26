@@ -35,6 +35,9 @@ function LoginPage() {
   const [registerForm, setRegisterForm] = useState({ name: "", email: "", password: "" });
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+
+
 
   if (loading) return <LoadingScreen />;
   if (user) return <Navigate to="/menu" replace />;
@@ -111,6 +114,38 @@ function LoginPage() {
       setSubmitting(false);
     }
   }
+
+  async function handlePasswordResetRequest() {
+    clearStatus();
+    const email = loginForm.email.trim();
+    if (!email) {
+      showStatus("err", "Informe seu e-mail para receber o link de redefinicao.");
+      return;
+    }
+    if (!isSupabaseConfigured) {
+      showStatus("err", "Configure as variaveis do Supabase.");
+      return;
+    }
+    setResetSubmitting(true);
+    try {
+      const redirectTo = `${window.location.origin}/redefinir-senha`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw error;
+      showStatus(
+        "ok",
+        "Se esse e-mail estiver cadastrado, enviaremos um link para redefinir sua senha."
+      );
+    } catch {
+      showStatus(
+        "err",
+        "Nao foi possivel iniciar a redefinicao agora. Tente novamente em instantes."
+      );
+    } finally {
+      setResetSubmitting(false);
+    }
+  }
+
+
 
   return (
     <>
@@ -213,6 +248,14 @@ function LoginPage() {
                   value={loginForm.password}
                   onChange={(e) => setLoginForm((f) => ({ ...f, password: e.target.value }))}
                 />
+                <button
+                  className="forgot-link"
+                  type="button"
+                  onClick={handlePasswordResetRequest}
+                  disabled={resetSubmitting || submitting}
+                >
+                  {resetSubmitting ? "Enviando link..." : "Esqueci minha senha"}
+                </button>
                 <button className="btn btn-primary full" type="submit" disabled={submitting}>
                   {submitting ? "Entrando..." : "Entrar"}
                 </button>
