@@ -1,3 +1,4 @@
+import { locationNeedleIconMarkup } from "../components/LocationNeedleIcon.jsx";
 import { createChecklist, listChecklists, updateChecklist } from "../lib/api";
 
 export function initChecklistSimplesController({ user, navigate, signOut }) {
@@ -54,6 +55,7 @@ let etapaCount = 0;
 let locationMap = null;
 let locationMarker = null;
 let locationCapturedAt = "";
+const DRAFT_MEDIA_KEY = "normatel_checklist_simples_media";
 const DRAFT_KEY = `checklist_draft_simples_${AUTH.id}`;
 let draftSaveTimer = null;
 let draftLoaded = false;
@@ -73,6 +75,99 @@ function getInputValue(id) {
 function setInputValue(id, value) {
   const node = el(id);
   if (node) node.value = value || "";
+}
+
+function formatLocationDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("pt-BR");
+}
+
+function ensureLocationPrintBlock() {
+  const mapEl = el("locationMap");
+  const block = mapEl?.closest(".form-block");
+  if (!block) return null;
+
+  block.classList.add("location-print-block");
+
+  const title = block.querySelector(".block-title");
+  if (title && !title.querySelector(".location-needle-wrap")) {
+    title.innerHTML = `<span class="location-needle-wrap">${locationNeedleIconMarkup}</span><span>Localização</span>`;
+  }
+
+  let summary = block.querySelector(".location-print-summary");
+  if (!summary) {
+    summary = document.createElement("div");
+    summary.className = "location-print-summary print-only";
+    summary.innerHTML = `
+      <div class="location-print-heading">
+        <span class="location-needle-wrap">${locationNeedleIconMarkup}</span>
+        <strong>Localização capturada</strong>
+      </div>
+      <div class="location-print-grid">
+        <div><b>Latitude:</b> <span data-location-lat>—</span></div>
+        <div><b>Longitude:</b> <span data-location-lng>—</span></div>
+        <div><b>Capturado em:</b> <span data-location-time>—</span></div>
+      </div>
+      <div class="location-print-link" data-location-link></div>
+    `;
+    block.appendChild(summary);
+  }
+
+  return summary;
+}
+
+function updateLocationPrintSummary() {
+  const summary = ensureLocationPrintBlock();
+  if (!summary) return;
+
+  const lat = getInputValue("locationLatitude");
+  const lng = getInputValue("locationLongitude");
+  const hasLocation = Boolean(lat && lng);
+  const link = hasLocation ? `https://www.google.com/maps?q=${encodeURIComponent(`${lat},${lng}`)}` : "";
+
+  summary.querySelector("[data-location-lat]").textContent = lat || "—";
+  summary.querySelector("[data-location-lng]").textContent = lng || "—";
+  summary.querySelector("[data-location-time]").textContent = formatLocationDate(locationCapturedAt) || "—";
+  summary.querySelector("[data-location-link]").textContent = link ? `Mapa: ${link}` : "Localização ainda não capturada.";
+  summary.classList.toggle("has-location", hasLocation);
+}
+
+function readMediaDraft() {
+  try {
+    return JSON.parse(localStorage.getItem(DRAFT_MEDIA_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+async function persistMediaDraft() {
+  const imagens = await collectImagens();
+  const location = {
+    latitude: getInputValue("locationLatitude"),
+    longitude: getInputValue("locationLongitude"),
+    capturedAt: locationCapturedAt,
+  };
+
+  localStorage.setItem(DRAFT_MEDIA_KEY, JSON.stringify({ imagens, location }));
+}
+
+function restoreMediaDraft() {
+  const draft = readMediaDraft();
+
+  if (Array.isArray(draft.imagens) && draft.imagens.length) {
+    setImagens(draft.imagens, false);
+  }
+
+  if (draft.location) {
+    setInputValue("locationLatitude", draft.location.latitude || "");
+    setInputValue("locationLongitude", draft.location.longitude || "");
+    locationCapturedAt = draft.location.capturedAt || "";
+    refreshLocationMap();
+  }
+
+  updateLocationPrintSummary();
 }
 
 function getCurrentLocation() {
@@ -95,6 +190,8 @@ function setLocationFields(position) {
   setInputValue("locationLongitude", String(position.coords.longitude.toFixed(6)));
   locationCapturedAt = new Date().toISOString();
   updateLocationMap(position.coords.latitude, position.coords.longitude);
+  updateLocationPrintSummary();
+  persistMediaDraft().catch(() => {});
   scheduleDraftSave();
 }
 
@@ -124,6 +221,8 @@ function initLocationMap() {
 
   locationMarker = L.marker([0, 0], { opacity: 0 }).addTo(locationMap);
 
+  refreshLocationMap();
+
   setTimeout(() => {
     if (locationMap) locationMap.invalidateSize();
   }, 200);
@@ -143,12 +242,14 @@ function updateLocationMap(latitude, longitude) {
   }
 
   locationMap.setView([lat, lng], 16);
+  updateLocationPrintSummary();
 }
 
 function refreshLocationMap() {
   const lat = getInputValue("locationLatitude");
   const lng = getInputValue("locationLongitude");
   if (lat && lng) updateLocationMap(lat, lng);
+  updateLocationPrintSummary();
 }
 
 function fillCarteiraSelect(selectId, includeAllOption = false) {
@@ -352,33 +453,23 @@ function addImagemInput() {
   const div = document.createElement("div");
   div.className = "foto-item";
   div.innerHTML = `
-    <input type="file" accept="image/*" class="imagem-file no-print" />
+    <input type="file" accept="image/*" class="imagem-file" />
     <button class="btn btn-light foto-remove-btn no-print" type="button">Remover</button>
   `;
   container.appendChild(div);
   const fileInput = div.querySelector(".imagem-file");
   const removeBtn = div.querySelector(".foto-remove-btn");
-  removeBtn.addEventListener("click", () => {
-    div.remove();
+  fileInput.addEventListener("change", async () => {
+    if (!fileInput.files[0]) return;
+    const base64 = await fileToBase64(fileInput.files[0]);
+    upsertImagemPreview(div, base64);
+    persistMediaDraft().catch(() => {});
     scheduleDraftSave();
   });
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    try {
-      const base64 = await fileToBase64(file);
-      div.innerHTML = `
-        <img src="${base64}" />
-        <button class="btn btn-light foto-remove-btn no-print" type="button">Remover</button>
-      `;
-      div.querySelector(".foto-remove-btn").addEventListener("click", () => {
-        div.remove();
-        scheduleDraftSave();
-      });
-      scheduleDraftSave();
-    } catch (e) {
-      alert("Falha ao ler imagem: " + (e?.message || e));
-    }
+  removeBtn.addEventListener("click", () => {
+    div.remove();
+    persistMediaDraft().catch(() => {});
+    scheduleDraftSave();
   });
 }
 
@@ -409,7 +500,17 @@ async function collectImagens() {
   return imgs;
 }
 
-function setImagens(imgs) {
+function upsertImagemPreview(container, src) {
+  let img = container.querySelector("img");
+  if (!img) {
+    img = document.createElement("img");
+    img.alt = "Imagem anexada";
+    container.insertBefore(img, container.firstChild);
+  }
+  img.src = src;
+}
+
+function setImagens(imgs, shouldPersist = true) {
   const container = document.querySelector(".fotos-preview");
   container.innerHTML = "";
   if (!Array.isArray(imgs)) return;
@@ -424,8 +525,11 @@ function setImagens(imgs) {
     const removeBtn = div.querySelector(".foto-remove-btn");
     removeBtn.addEventListener("click", () => {
       div.remove();
+      persistMediaDraft().catch(() => {});
+      scheduleDraftSave();
     });
   });
+  if (shouldPersist) persistMediaDraft().catch(() => {});
 }
 
 const infoAdicionaisBody = el("infoAdicionaisBody");
@@ -558,7 +662,7 @@ async function buildPayload() {
     location: {
       latitude: getInputValue("locationLatitude"),
       longitude: getInputValue("locationLongitude"),
-      capturedAt: locationCapturedAt || "",
+      capturedAt: locationCapturedAt,
     },
     dataInicio: el("dataInicio")?.value || "",
     dataFim: el("dataFim")?.value || "",
@@ -764,6 +868,7 @@ function applyPayload(data) {
   }
 
   setImagens(data.imagens || []);
+  updateLocationPrintSummary();
 }
 
 function clearForm() {
@@ -835,6 +940,7 @@ function clearForm() {
 
   document.querySelector(".fotos-preview").innerHTML = "";
   locationCapturedAt = "";
+  updateLocationPrintSummary();
 }
 
 async function apiRequest(method, path, body) {
@@ -999,84 +1105,45 @@ async function modalMeusChecklists() {
   loadList().catch((e) => alert(e.message || "Erro ao listar."));
 }
 
-const LOCATION_NEEDLE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M12 2 L15.2 12 L12 10 L8.8 12 Z" /><circle cx="12" cy="14.2" r="2" /></svg>`;
-
-function buildPrintExtras() {
-  const printArea = document.getElementById("printArea");
-  if (!printArea) return () => {};
-
-  const imgs = Array.from(document.querySelectorAll(".fotos-preview img")).map((i) => i.src);
-  let imgsSection = null;
-  if (imgs.length) {
-    imgsSection = document.createElement("section");
-    imgsSection.className = "form-block tight print-only-block";
-    imgsSection.innerHTML = `
-      <div class="block-title">Imagens anexadas</div>
-      <div class="print-imagens-grid">
-        ${imgs.map((src) => `<img src="${src}" alt="Imagem anexada" />`).join("")}
-      </div>
-    `;
-    printArea.appendChild(imgsSection);
-  }
-
-  const lat = getInputValue("locationLatitude");
-  const lng = getInputValue("locationLongitude");
-  let locSection = null;
-  if (lat && lng) {
-    const ts = locationCapturedAt
-      ? new Date(locationCapturedAt).toLocaleString("pt-BR")
-      : "—";
-    locSection = document.createElement("section");
-    locSection.className = "form-block tight print-only-block print-localizacao";
-    locSection.innerHTML = `
-      <div class="block-title">${LOCATION_NEEDLE_SVG} Localização</div>
-      <div>Latitude: <b>${lat}</b> &nbsp;|&nbsp; Longitude: <b>${lng}</b></div>
-      <div>Capturado em: <b>${ts}</b></div>
-      <div><a href="https://www.google.com/maps?q=${encodeURIComponent(lat + "," + lng)}" target="_blank" rel="noopener">https://www.google.com/maps?q=${lat},${lng}</a></div>
-    `;
-    printArea.appendChild(locSection);
-  }
-
-  return () => {
-    if (imgsSection) imgsSection.remove();
-    if (locSection) locSection.remove();
-  };
-}
-
 function modalImprimir() {
   openModal(
     "Imprimir checklist simples",
-    `<div class="m-help">Confirme para abrir a impressão do checklist simples atual.</div>`,
+    `<div class="m-help">Escolha se deseja abrir a impressão do navegador ou gerar um PDF do checklist simples atual.</div>`,
     `
       <button class="btn btn-light" id="m_cancel" type="button">Cancelar</button>
       <button class="btn btn-primary" id="m_print" type="button">Imprimir</button>
+      <button class="btn btn-light" id="m_pdf" type="button">Gerar PDF</button>
     `
   );
 
   el("m_cancel").onclick = closeModal;
-  el("m_print").onclick = async () => {
+  el("m_print").onclick = () => {
     closeModal();
-    const cleanup = buildPrintExtras();
+    window.print();
+  };
+  el("m_pdf").onclick = async () => {
+    closeModal();
     try {
       await gerarPdfDoPrintArea("checklist-simples");
     } catch (e) {
       console.error(e);
-      alert("Não foi possível gerar o PDF: " + (e?.message || e));
-    } finally {
-      cleanup();
+      showStatus("err", "Nao foi possivel gerar o PDF. Tente novamente.");
     }
   };
 }
 
 async function gerarPdfDoPrintArea(nomeBase) {
   const area = document.getElementById("printArea");
-  if (!area) throw new Error("Área de impressão não encontrada.");
-  const { default: html2pdf } = await import("html2pdf.js");
+  if (!area) throw new Error("Area de impressao nao encontrada.");
+
+  const html2pdf = await loadHtml2Pdf();
   const idTxt = (document.getElementById("currentIdTxt")?.textContent || "").trim();
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const safeId = idTxt && idTxt !== "—" ? `-${idTxt}` : "";
   const filename = `${nomeBase}${safeId}-${stamp}.pdf`;
+
   document.body.classList.add("pdf-export");
+
   try {
     await html2pdf()
       .set({
@@ -1088,9 +1155,10 @@ async function gerarPdfDoPrintArea(nomeBase) {
           useCORS: true,
           backgroundColor: "#ffffff",
           onclone: (doc) => {
-            const s = doc.createElement("style");
-            s.textContent = `#printArea, #printArea * { color: #000 !important; background-color: transparent !important; border-color: #000 !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; } #printArea { background: #fff !important; }`;
-            doc.head.appendChild(s);
+            const style = doc.createElement("style");
+            style.textContent =
+              "#printArea, #printArea * { color: #000 !important; border-color: #000 !important; text-shadow: none !important; filter: none !important; } #printArea { background: #fff !important; }";
+            doc.head.appendChild(style);
           },
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
@@ -1103,7 +1171,36 @@ async function gerarPdfDoPrintArea(nomeBase) {
   }
 }
 
-// ===== Draft localStorage =====
+function loadHtml2Pdf() {
+  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector("script[data-html2pdf-loader]");
+
+    if (existing) {
+      existing.addEventListener("load", () => resolve(window.html2pdf), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Falha ao carregar html2pdf.")), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.async = true;
+    script.dataset.html2pdfLoader = "true";
+    script.onload = () => {
+      if (window.html2pdf) {
+        resolve(window.html2pdf);
+      } else {
+        reject(new Error("html2pdf indisponivel."));
+      }
+    };
+    script.onerror = () => reject(new Error("Falha ao carregar html2pdf."));
+    document.head.appendChild(script);
+  });
+}
+
 async function saveDraft() {
   try {
     if (currentId) return;
@@ -1172,13 +1269,13 @@ async function saveChecklist() {
       showStatus("ok", `Checklist simples salvo com sucesso. Solicitação: ${payload.numSolicitacao}`);
     }
     clearDraft();
+    localStorage.removeItem(DRAFT_MEDIA_KEY);
   } catch (e) {
     showStatus("err", e.message || "Erro ao salvar.");
   }
 }
 
 async function sair() {
-  clearDraft();
   await signOut();
   navigate("/");
 }
@@ -1194,6 +1291,7 @@ el("btnNovo").addEventListener("click", () => {
   currentIdTxt.textContent = "—";
   clearForm();
   clearDraft();
+  localStorage.removeItem(DRAFT_MEDIA_KEY);
   clearStatus();
   showStatus("ok", "Novo checklist simples iniciado.");
 });
@@ -1208,23 +1306,27 @@ if (btnSairNav) {
   });
 }
 
-if (!currentId) {
-  loadDraft();
+ensureLocationPrintBlock();
+if (!currentId && !loadDraft()) {
+  restoreMediaDraft();
+} else {
+  updateLocationPrintSummary();
 }
 draftLoaded = true;
 
-document.addEventListener("input", (e) => {
+function handleDraftChange(e) {
   const tag = e.target?.tagName;
   if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
     scheduleDraftSave();
   }
-});
-document.addEventListener("change", (e) => {
-  const tag = e.target?.tagName;
-  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
-    scheduleDraftSave();
-  }
-});
+}
 
-  return () => {};
+document.addEventListener("input", handleDraftChange);
+document.addEventListener("change", handleDraftChange);
+
+  return () => {
+    clearTimeout(draftSaveTimer);
+    document.removeEventListener("input", handleDraftChange);
+    document.removeEventListener("change", handleDraftChange);
+  };
 }
