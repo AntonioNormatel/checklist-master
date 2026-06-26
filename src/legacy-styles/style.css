@@ -1448,7 +1448,63 @@ body.pdf-export .print-imagens-grid img {
   width: 100% !important;
   height: auto !important;
 }
-body.pdf-export #printArea {
+body.pdf-export .pdf-export-stage {
+  position: fixed !important;
+  left: -10000px !important;
+  top: 0 !important;
+  width: 1120px !important;
+  background: #fff !important;
+  z-index: -1 !important;
+}
+body.pdf-export .pdf-print-area {
+  max-width: none !important;
+  width: 1120px !important;
+  background: #fff !important;
+  color: #111 !important;
+  box-shadow: none !important;
+}
+body.pdf-export .pdf-print-area table {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+body.pdf-export .pdf-field-value {
+  display: block !important;
+  min-height: 18px !important;
+  padding: 2px 4px !important;
+  border: 1px solid rgba(0, 0, 0, 0.35) !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  color: #111 !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+}
+body.pdf-export .simple-header-inline-input.pdf-field-value,
+body.pdf-export .simple-header-inline-select.pdf-field-value {
+  display: inline-block !important;
+  min-height: 18px !important;
+  padding: 0 2px !important;
+  border: 0 !important;
+  font-weight: 700 !important;
+  vertical-align: middle !important;
+}
+body.pdf-export .pdf-checkbox-value,
+body.pdf-export .pdf-radio-value {
+  display: inline-flex !important;
+  width: 13px !important;
+  height: 13px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: 1px solid #111 !important;
+  color: #111 !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+}
+body.pdf-export .pdf-radio-value {
+  border-radius: 50% !important;
+}
+body.pdf-export #printArea,
+body.pdf-export #printAreaPdfClone {
   background: #fff !important;
 }
 

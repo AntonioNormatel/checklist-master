@@ -1,5 +1,6 @@
-import { locationNeedleIconMarkup } from "../components/LocationNeedleIcon";
+import { locationNeedleIconMarkup } from "../components/LocationNeedleIcon.jsx";
 import { createChecklist, listChecklists, updateChecklist } from "../lib/api";
+import { gerarPdfDoPrintArea as exportarPdfDoPrintArea } from "./pdfExport";
 
 export function initChecklistSimplesController({ user, navigate, signOut }) {
   const AUTH = {
@@ -1119,7 +1120,10 @@ function modalImprimir() {
   el("m_cancel").onclick = closeModal;
   el("m_print").onclick = () => {
     closeModal();
-    window.print();
+    gerarPdfDoPrintArea("checklist-simples").catch((e) => {
+      console.error(e);
+      showStatus("err", "Nao foi possivel gerar o PDF. Tente novamente.");
+    });
   };
   el("m_pdf").onclick = async () => {
     closeModal();
@@ -1199,6 +1203,30 @@ function loadHtml2Pdf() {
     script.onerror = () => reject(new Error("Falha ao carregar html2pdf."));
     document.head.appendChild(script);
   });
+}
+
+async function baixarChecklistPdf() {
+  const btn = el("btnImprimirModal");
+  const originalText = btn.textContent;
+
+  clearStatus();
+  updateLocationPrintSummary();
+  btn.disabled = true;
+  btn.textContent = "Gerando PDF...";
+
+  try {
+    await exportarPdfDoPrintArea({
+      nomeBase: "checklist-simples",
+      solicitacao: getInputValue("numSolicitacao"),
+    });
+    showStatus("ok", "PDF gerado com sucesso.");
+  } catch (e) {
+    console.error(e);
+    showStatus("err", "Nao foi possivel gerar o PDF. Tente novamente.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 async function saveDraft() {
@@ -1282,7 +1310,8 @@ async function sair() {
 
 el("btnSalvar").addEventListener("click", saveChecklist);
 el("btnAbrirModalLista").addEventListener("click", () => modalMeusChecklists());
-el("btnImprimirModal").addEventListener("click", modalImprimir);
+el("btnImprimirModal").textContent = "Baixar PDF";
+el("btnImprimirModal").addEventListener("click", baixarChecklistPdf);
 el("btnAddEtapa").addEventListener("click", () => addEtapa());
 el("btnGetLocation").addEventListener("click", fetchLocation);
 
