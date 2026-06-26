@@ -1,28 +1,38 @@
 /**
- * SVG da agulha de localização. Usa currentColor para herdar a cor do texto.
- * Pode ser usado em React (este componente) ou injetado via string usando
- * `LOCATION_NEEDLE_SVG` no markup vanilla dos controllers legados.
+ * Agulha de localizacao. Usa currentColor para herdar a cor do texto.
+ * `locationNeedleIconMarkup` e a versao em string para injecao em HTML
+ * pelos controllers legados (innerHTML).
  */
-export const LOCATION_NEEDLE_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true">
-  <path d="M12 2 L15.2 12 L12 10 L8.8 12 Z" />
-  <circle cx="12" cy="14.2" r="2" />
-</svg>
-`.trim();
+export const locationNeedleIconMarkup = `
+  <svg class="location-needle-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <path d="M12.85 2.75 20.5 21.3l-8.25-4.15L4 21.3l7.65-18.55c.22-.53.98-.53 1.2 0Z" fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="1.8" />
+    <path d="M12.25 5.85v9.35l4.15 2.1-4.15-11.45Z" fill="currentColor" opacity="0.22" />
+  </svg>
+`;
 
-export function LocationNeedleIcon({ className }: { className?: string }) {
+// Alias de compatibilidade com versoes anteriores.
+export const LOCATION_NEEDLE_SVG = locationNeedleIconMarkup;
+
+export function LocationNeedleIcon({ className = "location-needle-icon" }: { className?: string }) {
   return (
     <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      width="1em"
-      height="1em"
-      fill="currentColor"
-      aria-hidden="true"
       className={className}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
     >
-      <path d="M12 2 L15.2 12 L12 10 L8.8 12 Z" />
-      <circle cx="12" cy="14.2" r="2" />
+      <path
+        d="M12.85 2.75 20.5 21.3l-8.25-4.15L4 21.3l7.65-18.55c.22-.53.98-.53 1.2 0Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M12.25 5.85v9.35l4.15 2.1-4.15-11.45Z"
+        fill="currentColor"
+        opacity="0.22"
+      />
     </svg>
   );
 }
