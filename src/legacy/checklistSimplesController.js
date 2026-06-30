@@ -1227,8 +1227,9 @@ async function baixarChecklistPdf() {
     });
     showStatus("ok", "PDF gerado com sucesso.");
   } catch (e) {
-    console.error(e);
-    showStatus("err", "Nao foi possivel gerar o PDF. Tente novamente.");
+    console.error("Erro real ao gerar PDF:", e);
+    const msg = e && e.message ? e.message : String(e);
+    showStatus("err", `Nao foi possivel gerar o PDF: ${msg}`);
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
