@@ -1,5 +1,14 @@
-const HTML2PDF_CDN =
-  "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+// Robust PDF export: bundled html2canvas + jsPDF.
+// Builds an offscreen A4-width clone, replaces form controls with static text,
+// strips interactive widgets (maps, buttons, iframes, etc.) and slices the
+// rendered canvas across multiple A4 pages.
+
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+
+const A4_WIDTH_PX = 794; // 210mm at ~96dpi
+const A4_WIDTH_MM = 210;
+const A4_HEIGHT_MM = 297;
 
 function safeFilePart(value) {
   return String(value || "")
@@ -18,79 +27,131 @@ function makeFilename(nomeBase, solicitacao) {
 }
 
 function fieldText(value) {
-  const text = String(value || "").trim();
+  const text = String(value ?? "").trim();
   return text || "\u00a0";
 }
 
 function replaceWithValue(control, value) {
-  const span = document.createElement("span");
-  span.className = `${control.className || ""} pdf-field-value`.trim();
+  const span = control.ownerDocument.createElement("span");
+  span.className = "pdf-field-value";
   span.textContent = fieldText(value);
   control.replaceWith(span);
 }
 
 function replaceWithMark(control, checked, type) {
-  const span = document.createElement("span");
+  const span = control.ownerDocument.createElement("span");
   span.className = `pdf-${type}-value ${checked ? "checked" : ""}`;
   span.textContent = checked ? (type === "checkbox" ? "\u2713" : "\u25cf") : "";
   control.replaceWith(span);
 }
 
 function syncControlsForPdf(source, clone) {
-  const originalControls = Array.from(source.querySelectorAll("input, select, textarea"));
-  const cloneControls = Array.from(clone.querySelectorAll("input, select, textarea"));
-
-  cloneControls.forEach((control, index) => {
-    const original = originalControls[index];
-    if (!original) return;
-
-    const tag = original.tagName;
-
-    if (tag === "SELECT") {
-      const selected = original.selectedOptions?.[0]?.textContent || original.value;
-      replaceWithValue(control, selected);
+  const originals = Array.from(source.querySelectorAll("input, select, textarea"));
+  const clones = Array.from(clone.querySelectorAll("input, select, textarea"));
+  clones.forEach((control, index) => {
+    const original = originals[index];
+    if (!original) {
+      control.remove();
       return;
     }
-
+    const tag = original.tagName;
+    if (tag === "SELECT") {
+      replaceWithValue(control, original.selectedOptions?.[0]?.textContent || original.value);
+      return;
+    }
     if (tag === "TEXTAREA") {
       replaceWithValue(control, original.value);
       return;
     }
-
     const type = String(original.type || "text").toLowerCase();
-
     if (type === "checkbox" || type === "radio") {
       replaceWithMark(control, original.checked, type);
       return;
     }
-
     if (type === "file") {
       control.remove();
       return;
     }
-
     replaceWithValue(control, original.value);
   });
+}
+
+function stripNonPrintable(clone) {
+  const selectors = [
+    ".no-print",
+    "[data-no-print]",
+    "button",
+    ".btn",
+    ".add-btn",
+    ".remove-btn",
+    ".foto-remove-btn",
+    "#btnAddImagem",
+    "#btnGetLocation",
+    ".location-map",
+    ".leaflet-container",
+    ".leaflet-pane",
+    ".leaflet-control",
+    "iframe",
+    "nav",
+    ".site-menu",
+    ".actions-stack",
+    "script",
+    "noscript",
+  ];
+  clone.querySelectorAll(selectors.join(",")).forEach((el) => el.remove());
+}
+
+async function waitForImages(container) {
+  const imgs = Array.from(container.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map(
+      (img) =>
+        new Promise((resolve) => {
+          if (img.complete && img.naturalWidth > 0) return resolve();
+          img.onload = () => resolve();
+          img.onerror = () => {
+            img.remove();
+            resolve();
+          };
+          // Safety timeout per image
+          setTimeout(resolve, 4000);
+        }),
+    ),
+  );
 }
 
 function prepareClone(source) {
   const clone = source.cloneNode(true);
   clone.id = "printAreaPdfClone";
-  clone.classList.add("pdf-print-area");
+  clone.classList.add("pdf-print-area", "pdf-export-clone");
+
   syncControlsForPdf(source, clone);
+  stripNonPrintable(clone);
 
-  // Remove elementos que nao devem aparecer no PDF (botoes, no-print, mapa leaflet, iframes)
-  clone
-    .querySelectorAll(
-      ".no-print, [data-no-print], button, .btn, .add-btn, .remove-btn, .location-map, .leaflet-container, iframe, .foto-remove-btn, #btnAddImagem, #btnGetLocation"
-    )
-    .forEach((el) => el.remove());
-
+  // Offscreen A4-wide stage
   const stage = document.createElement("div");
-  stage.className = "pdf-export-stage";
+  stage.setAttribute(
+    "style",
+    [
+      "position:fixed",
+      "left:-100000px",
+      "top:0",
+      `width:${A4_WIDTH_PX}px`,
+      "background:#ffffff",
+      "z-index:-1",
+      "pointer-events:none",
+    ].join(";"),
+  );
+
+  clone.style.width = `${A4_WIDTH_PX}px`;
+  clone.style.maxWidth = `${A4_WIDTH_PX}px`;
+  clone.style.background = "#ffffff";
+  clone.style.padding = "20px";
+  clone.style.boxSizing = "border-box";
+  clone.style.color = "#111";
+
   stage.appendChild(clone);
   document.body.appendChild(stage);
-
   return {
     element: clone,
     cleanup() {
@@ -99,99 +160,101 @@ function prepareClone(source) {
   };
 }
 
-// CSS injetado no documento clonado pelo html2canvas para evitar funcoes
-// de cor modernas (oklch / lab / color()) que o html2canvas nao consegue
-// parsear. Forca cores seguras dentro da area do PDF.
+// CSS injected in the cloned document so html2canvas never sees modern color
+// functions (oklch/lab/color()) that it cannot parse.
 const PDF_SAFE_CSS = `
-  #printAreaPdfClone, #printAreaPdfClone *,
-  .pdf-print-area, .pdf-print-area * {
+  .pdf-export-clone, .pdf-export-clone * {
     color: #111 !important;
-    border-color: #111 !important;
+    border-color: #333 !important;
     text-shadow: none !important;
     filter: none !important;
     box-shadow: none !important;
+    background-image: none !important;
   }
-  #printAreaPdfClone, .pdf-print-area { background: #ffffff !important; }
-  .pdf-export-stage { background: #ffffff !important; }
+  .pdf-export-clone { background: #ffffff !important; }
+  .pdf-export-clone .pdf-field-value {
+    display: inline-block;
+    min-height: 1em;
+    padding: 2px 4px;
+    font-weight: 600;
+  }
+  .pdf-export-clone .pdf-checkbox-value,
+  .pdf-export-clone .pdf-radio-value {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 1px solid #333;
+    text-align: center; line-height: 12px;
+    font-size: 12px;
+  }
+  .pdf-export-clone .pdf-radio-value { border-radius: 50%; }
 `;
-
-
-function loadHtml2Pdf() {
-  if (window.html2pdf) return Promise.resolve(window.html2pdf);
-
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector("script[data-html2pdf-loader]");
-
-    if (existing) {
-      existing.addEventListener("load", () => resolve(window.html2pdf), { once: true });
-      existing.addEventListener("error", () => reject(new Error("Falha ao carregar html2pdf.")), {
-        once: true,
-      });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = HTML2PDF_CDN;
-    script.async = true;
-    script.dataset.html2pdfLoader = "true";
-    script.onload = () => {
-      if (window.html2pdf) {
-        resolve(window.html2pdf);
-      } else {
-        reject(new Error("html2pdf indisponivel."));
-      }
-    };
-    script.onerror = () => reject(new Error("Falha ao carregar html2pdf."));
-    document.head.appendChild(script);
-  });
-}
 
 export async function gerarPdfDoPrintArea({ nomeBase, solicitacao = "" }) {
   const source = document.getElementById("printArea");
-  if (!source) throw new Error("Area do checklist nao encontrada.");
+  if (!source) throw new Error("Area do checklist nao encontrada (#printArea).");
 
-  const html2pdf = await loadHtml2Pdf();
   const filename = makeFilename(nomeBase, solicitacao);
   const { element, cleanup } = prepareClone(source);
 
   document.body.classList.add("pdf-export");
 
   try {
-    await html2pdf()
-      .set({
-        margin: 7,
-        filename,
-        image: { type: "jpeg", quality: 0.96 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: "#ffffff",
-          scrollX: 0,
-          scrollY: 0,
-          logging: false,
-          onclone: (doc) => {
-            try {
-              const style = doc.createElement("style");
-              style.textContent = PDF_SAFE_CSS;
-              doc.head.appendChild(style);
-              // Remove qualquer mapa/iframe residual no documento clonado
-              doc
-                .querySelectorAll(
-                  ".location-map, .leaflet-container, iframe, .no-print, button, .btn"
-                )
-                .forEach((el) => el.remove());
-            } catch {}
-          },
-        },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        pagebreak: {
-          mode: ["css", "legacy"],
-          avoid: ["tr", "table", ".form-block", ".foto-item"],
-        },
-      })
-      .from(element)
-      .save();
+    await waitForImages(element);
+    await new Promise((r) => setTimeout(r, 150));
+
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#ffffff",
+      logging: false,
+      width: element.scrollWidth,
+      height: element.scrollHeight,
+      windowWidth: element.scrollWidth,
+      windowHeight: element.scrollHeight,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (doc) => {
+        try {
+          const style = doc.createElement("style");
+          style.textContent = PDF_SAFE_CSS;
+          doc.head.appendChild(style);
+          doc
+            .querySelectorAll(
+              ".location-map, .leaflet-container, iframe, .no-print, button, .btn, .actions-stack, nav, .site-menu",
+            )
+            .forEach((el) => el.remove());
+        } catch (err) {
+          console.warn("[pdf] onclone falhou:", err);
+        }
+      },
+    });
+
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const imgWidthMm = A4_WIDTH_MM;
+    const imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+    let heightLeft = imgHeightMm;
+    let position = 0;
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm);
+    heightLeft -= A4_HEIGHT_MM;
+
+    while (heightLeft > 0) {
+      position -= A4_HEIGHT_MM;
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidthMm, imgHeightMm);
+      heightLeft -= A4_HEIGHT_MM;
+    }
+
+    pdf.save(filename);
+  } catch (err) {
+    console.error("[pdf] Falha ao gerar PDF:", {
+      message: err?.message,
+      stack: err?.stack,
+      err,
+    });
+    throw err;
   } finally {
     cleanup();
     document.body.classList.remove("pdf-export");
