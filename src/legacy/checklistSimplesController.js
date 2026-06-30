@@ -511,19 +511,25 @@ function upsertImagemPreview(container, src) {
   img.src = src;
 }
 
+const SAFE_IMAGE_DATA_URL = /^data:image\/(jpeg|jpg|png|gif|webp);base64,[A-Za-z0-9+/=]+$/;
+
 function setImagens(imgs, shouldPersist = true) {
   const container = document.querySelector(".fotos-preview");
   container.innerHTML = "";
   if (!Array.isArray(imgs)) return;
   imgs.forEach(base64 => {
+    if (typeof base64 !== "string" || !SAFE_IMAGE_DATA_URL.test(base64)) return;
     const div = document.createElement("div");
     div.className = "foto-item";
-    div.innerHTML = `
-      <img src="${base64}" />
-      <button class="btn btn-light foto-remove-btn no-print" type="button">Remover</button>
-    `;
+    const img = document.createElement("img");
+    img.setAttribute("src", base64);
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "btn btn-light foto-remove-btn no-print";
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remover";
+    div.appendChild(img);
+    div.appendChild(removeBtn);
     container.appendChild(div);
-    const removeBtn = div.querySelector(".foto-remove-btn");
     removeBtn.addEventListener("click", () => {
       div.remove();
       persistMediaDraft().catch(() => {});
