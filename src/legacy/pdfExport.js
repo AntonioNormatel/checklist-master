@@ -165,9 +165,24 @@ export async function gerarPdfDoPrintArea({ nomeBase, solicitacao = "" }) {
         html2canvas: {
           scale: 2,
           useCORS: true,
+          allowTaint: false,
           backgroundColor: "#ffffff",
           scrollX: 0,
           scrollY: 0,
+          logging: false,
+          onclone: (doc) => {
+            try {
+              const style = doc.createElement("style");
+              style.textContent = PDF_SAFE_CSS;
+              doc.head.appendChild(style);
+              // Remove qualquer mapa/iframe residual no documento clonado
+              doc
+                .querySelectorAll(
+                  ".location-map, .leaflet-container, iframe, .no-print, button, .btn"
+                )
+                .forEach((el) => el.remove());
+            } catch {}
+          },
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: {
