@@ -2,6 +2,7 @@ import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useAuth } from "@/lib/auth-context";
+import UserMenu from "@/components/UserMenu";
 
 export const Route = createFileRoute("/menu")({
   head: () => ({
@@ -36,17 +37,37 @@ function LoadingScreen() {
   );
 }
 
+function PendingApprovalScreen({ onSignOut }: { onSignOut: () => void }) {
+  return (
+    <main className="site-main app-loading">
+      <div className="paper-status err" style={{ maxWidth: 520, textAlign: "center" }}>
+        <div style={{ marginBottom: 12 }}>
+          <b>Conta aguardando aprovação</b>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          Seu cadastro foi recebido. Um administrador precisa autorizar seu acesso antes que você possa usar os checklists.
+        </div>
+        <button className="btn btn-primary" type="button" onClick={onSignOut}>Sair</button>
+      </div>
+    </main>
+  );
+}
+
 function MenuPage() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, role, approved, roleLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
 
-  if (loading) return <LoadingScreen />;
+  if (loading || roleLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/" replace />;
 
   async function handleSignOut() {
     await signOut();
     navigate({ to: "/" });
+  }
+
+  if (!approved || !role) {
+    return <PendingApprovalScreen onSignOut={handleSignOut} />;
   }
 
   return (
@@ -58,18 +79,9 @@ function MenuPage() {
         <div className="header-right">
           <div className="company-title">Normatel Engenharia</div>
           <div className="company-subtitle">Central de Acesso</div>
+          <UserMenu />
         </div>
       </header>
-
-      <nav className="site-menu no-print">
-        <button
-          className="menu-item menu-item-button"
-          type="button"
-          onClick={handleSignOut}
-        >
-          Sair
-        </button>
-      </nav>
 
       <main className="site-main">
         <div className="menu-page-wrap">
@@ -114,7 +126,7 @@ function MenuPage() {
                 mantendo padronizacao de registro, etapas, recursos necessarios e impressao.
               </div>
               <button
-                className="btn btn-light"
+                className="btn btn-primary"
                 type="button"
                 onClick={() => navigate({ to: "/checklist-simples" })}
               >
@@ -129,7 +141,7 @@ function MenuPage() {
                 abra o suporte para visualizar orientacoes e canais de contato.
               </div>
               <button
-                className="btn btn-light"
+                className="btn btn-primary"
                 type="button"
                 onClick={() => setSupportOpen(true)}
               >
@@ -182,7 +194,7 @@ function MenuPage() {
             </div>
             <div className="modal-foot">
               <button
-                className="btn btn-light"
+                className="btn btn-primary"
                 type="button"
                 onClick={() => setSupportOpen(false)}
               >

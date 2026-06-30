@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Navigate, useNavigate } from "@tanstack/react-router";
 import {
   checklistCriticoTemplate,
@@ -10,6 +11,7 @@ import { initChecklistController } from "@/legacy/checklistController";
 // @ts-expect-error - legacy JS module without types
 import { initChecklistSimplesController } from "@/legacy/checklistSimplesController";
 import { useAuth } from "@/lib/auth-context";
+import UserMenu from "@/components/UserMenu";
 
 type Kind = "critico" | "simples";
 
@@ -22,10 +24,11 @@ function LoadingScreen() {
 }
 
 export default function ChecklistView({ kind }: { kind: Kind }) {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, role, approved, roleLoading, signOut } = useAuth();
   const tanstackNavigate = useNavigate();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [leafletReady, setLeafletReady] = useState(false);
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
   const template = useMemo(
     () => (kind === "simples" ? checklistSimplesTemplate : checklistCriticoTemplate),
@@ -46,7 +49,7 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
         setLeafletReady(true);
       } catch (err) {
         console.warn("Falha ao carregar Leaflet:", err);
-        if (active) setLeafletReady(true); // segue mesmo sem mapa
+        if (active) setLeafletReady(true);
       }
     })();
     return () => {
@@ -56,7 +59,7 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
 
   // Inicializa o controller legado apos o template estar montado.
   useEffect(() => {
-    if (!user || !leafletReady) return undefined;
+    if (!user || !leafletReady || !approved) return undefined;
     const container = containerRef.current;
     if (!container) return undefined;
 
@@ -73,7 +76,6 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
 
     container.addEventListener("click", handleLocalLinks);
 
-    // Adaptador: controllers legados chamam navigate("/path").
     const legacyNavigate = (path: string) => {
       tanstackNavigate({ to: path });
     };
@@ -83,21 +85,43 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
         ? initChecklistSimplesController({ user, navigate: legacyNavigate, signOut })
         : initChecklistController({ user, navigate: legacyNavigate, signOut });
 
+    // Esconder Baixar PDF para executante
+    if (role === "executante") {
+      container.classList.add("role-executante");
+      const pdfBtn = container.querySelector<HTMLElement>("#btnImprimirModal");
+      if (pdfBtn) pdfBtn.style.display = "none";
+    } else {
+      container.classList.remove("role-executante");
+    }
+
+    // Injeta UserMenu no header legado
+    const headerRight = container.querySelector<HTMLElement>(".site-header .header-right");
+    if (headerRight && !headerRight.querySelector(".user-menu-slot")) {
+      const slot = document.createElement("div");
+      slot.className = "user-menu-slot";
+      headerRight.appendChild(slot);
+      setHeaderSlot(slot);
+    }
+
     return () => {
       container.removeEventListener("click", handleLocalLinks);
       if (typeof cleanup === "function") cleanup();
     };
-  }, [kind, user, leafletReady, signOut, tanstackNavigate]);
+  }, [kind, user, leafletReady, signOut, tanstackNavigate, role, approved]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading || roleLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/" replace />;
+  if (!approved) return <Navigate to="/menu" replace />;
 
   return (
-    <div
-      key={kind}
-      ref={containerRef}
-      className="legacy-checklist-page"
-      dangerouslySetInnerHTML={{ __html: template }}
-    />
+    <>
+      <div
+        key={kind}
+        ref={containerRef}
+        className="legacy-checklist-page"
+        dangerouslySetInnerHTML={{ __html: template }}
+      />
+      {headerSlot ? createPortal(<UserMenu />, headerSlot) : null}
+    </>
   );
 }
