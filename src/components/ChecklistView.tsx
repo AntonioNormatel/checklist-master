@@ -59,11 +59,12 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
 
   // Inicializa o controller legado apos o template estar montado.
   useEffect(() => {
-    console.log("[ChecklistView] effect", { hasUser: !!user, leafletReady, approved, role });
+    try { sessionStorage.setItem("cv_effect", `${Date.now()} user=${!!user} leaflet=${leafletReady} approved=${approved} role=${role}`); } catch {}
     if (!user || !leafletReady || !approved) return undefined;
     const container = containerRef.current;
-    console.log("[ChecklistView] container?", !!container);
+    try { sessionStorage.setItem("cv_container", String(!!container)); } catch {}
     if (!container) return undefined;
+
 
 
     function handleLocalLinks(event: MouseEvent) {
