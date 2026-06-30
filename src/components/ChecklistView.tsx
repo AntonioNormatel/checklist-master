@@ -90,9 +90,12 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
         kind === "simples"
           ? initChecklistSimplesController({ user, navigate: legacyNavigate, signOut })
           : initChecklistController({ user, navigate: legacyNavigate, signOut });
+      try { sessionStorage.setItem("cv_init", "ok " + (document.getElementById("btnImprimirModal")?.textContent ?? "null")); } catch {}
     } catch (err) {
+      try { sessionStorage.setItem("cv_init", "err " + (err instanceof Error ? err.message + "\n" + err.stack : String(err))); } catch {}
       console.error("[ChecklistView] init falhou", err);
     }
+
 
 
     // Esconder Baixar PDF para executante
