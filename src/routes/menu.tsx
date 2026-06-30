@@ -1,5 +1,5 @@
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useAuth } from "@/lib/auth-context";
 import UserMenu from "@/components/UserMenu";
@@ -57,6 +57,10 @@ function MenuPage() {
   const { user, loading, role, approved, roleLoading, signOut } = useAuth();
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, []);
 
   if (loading || roleLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/" replace />;

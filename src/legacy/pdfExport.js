@@ -79,8 +79,12 @@ function prepareClone(source) {
   clone.classList.add("pdf-print-area");
   syncControlsForPdf(source, clone);
 
-  // Remove qualquer elemento marcado como no-print do clone do PDF
-  clone.querySelectorAll(".no-print, [data-no-print], button, .btn, .add-btn, .remove-btn").forEach((el) => el.remove());
+  // Remove elementos que nao devem aparecer no PDF (botoes, no-print, mapa leaflet, iframes)
+  clone
+    .querySelectorAll(
+      ".no-print, [data-no-print], button, .btn, .add-btn, .remove-btn, .location-map, .leaflet-container, iframe, .foto-remove-btn, #btnAddImagem, #btnGetLocation"
+    )
+    .forEach((el) => el.remove());
 
   const stage = document.createElement("div");
   stage.className = "pdf-export-stage";
@@ -94,6 +98,22 @@ function prepareClone(source) {
     },
   };
 }
+
+// CSS injetado no documento clonado pelo html2canvas para evitar funcoes
+// de cor modernas (oklch / lab / color()) que o html2canvas nao consegue
+// parsear. Forca cores seguras dentro da area do PDF.
+const PDF_SAFE_CSS = `
+  #printAreaPdfClone, #printAreaPdfClone *,
+  .pdf-print-area, .pdf-print-area * {
+    color: #111 !important;
+    border-color: #111 !important;
+    text-shadow: none !important;
+    filter: none !important;
+    box-shadow: none !important;
+  }
+  #printAreaPdfClone, .pdf-print-area { background: #ffffff !important; }
+  .pdf-export-stage { background: #ffffff !important; }
+`;
 
 
 function loadHtml2Pdf() {
@@ -145,9 +165,24 @@ export async function gerarPdfDoPrintArea({ nomeBase, solicitacao = "" }) {
         html2canvas: {
           scale: 2,
           useCORS: true,
+          allowTaint: false,
           backgroundColor: "#ffffff",
           scrollX: 0,
           scrollY: 0,
+          logging: false,
+          onclone: (doc) => {
+            try {
+              const style = doc.createElement("style");
+              style.textContent = PDF_SAFE_CSS;
+              doc.head.appendChild(style);
+              // Remove qualquer mapa/iframe residual no documento clonado
+              doc
+                .querySelectorAll(
+                  ".location-map, .leaflet-container, iframe, .no-print, button, .btn"
+                )
+                .forEach((el) => el.remove());
+            } catch {}
+          },
         },
         jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         pagebreak: {
