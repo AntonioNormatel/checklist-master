@@ -80,10 +80,16 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
       tanstackNavigate({ to: path });
     };
 
-    const cleanup =
-      kind === "simples"
-        ? initChecklistSimplesController({ user, navigate: legacyNavigate, signOut })
-        : initChecklistController({ user, navigate: legacyNavigate, signOut });
+    let cleanup: (() => void) | undefined;
+    try {
+      cleanup =
+        kind === "simples"
+          ? initChecklistSimplesController({ user, navigate: legacyNavigate, signOut })
+          : initChecklistController({ user, navigate: legacyNavigate, signOut });
+    } catch (err) {
+      console.error("[ChecklistView] init falhou", err);
+    }
+
 
     // Esconder Baixar PDF para executante
     if (role === "executante") {
