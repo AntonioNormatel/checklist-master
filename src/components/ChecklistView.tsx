@@ -65,7 +65,16 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
     };
   }, []);
 
-  // Injeta o template e inicializa o controller legado uma única vez por kind.
+  // Atualiza apenas a classe quando o role muda (sem re-inicializar tudo).
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    container.classList.toggle("role-executante", role === "executante");
+    const pdfBtn = container.querySelector<HTMLElement>("#btnImprimirModal");
+    if (pdfBtn) pdfBtn.style.display = role === "executante" ? "none" : "";
+  }, [role]);
+
+  // Injeta o template e inicializa o controller legado uma única vez por kind/usuário.
   useEffect(() => {
     if (!user || !leafletReady || !approved) return undefined;
     const container = containerRef.current;
@@ -99,15 +108,6 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
       console.error("[ChecklistView] init falhou", err);
     }
 
-    // Esconder Baixar PDF para executante
-    if (role === "executante") {
-      container.classList.add("role-executante");
-      const pdfBtn = container.querySelector<HTMLElement>("#btnImprimirModal");
-      if (pdfBtn) pdfBtn.style.display = "none";
-    } else {
-      container.classList.remove("role-executante");
-    }
-
     // Injeta UserMenu no header legado
     const headerRight = container.querySelector<HTMLElement>(".site-header .header-right");
     if (headerRight && !headerRight.querySelector(".user-menu-slot")) {
@@ -123,7 +123,8 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
       setHeaderSlot(null);
       container.innerHTML = "";
     };
-  }, [kind, user?.id, leafletReady, approved, role, template]);
+  }, [kind, user?.id, leafletReady, approved, template]);
+
 
   if (loading || roleLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/" replace />;
