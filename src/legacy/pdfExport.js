@@ -79,6 +79,9 @@ function prepareClone(source) {
   clone.classList.add("pdf-print-area");
   syncControlsForPdf(source, clone);
 
+  // Remove qualquer elemento marcado como no-print do clone do PDF
+  clone.querySelectorAll(".no-print, [data-no-print], button, .btn, .add-btn, .remove-btn").forEach((el) => el.remove());
+
   const stage = document.createElement("div");
   stage.className = "pdf-export-stage";
   stage.appendChild(clone);
@@ -91,6 +94,7 @@ function prepareClone(source) {
     },
   };
 }
+
 
 function loadHtml2Pdf() {
   if (window.html2pdf) return Promise.resolve(window.html2pdf);
