@@ -30,6 +30,14 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
   const [leafletReady, setLeafletReady] = useState(false);
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null);
 
+  // Refs estáveis para callbacks (evita re-executar o init em cada render).
+  const signOutRef = useRef(signOut);
+  const navigateRef = useRef(tanstackNavigate);
+  useEffect(() => {
+    signOutRef.current = signOut;
+    navigateRef.current = tanstackNavigate;
+  });
+
   const template = useMemo(
     () => (kind === "simples" ? checklistSimplesTemplate : checklistCriticoTemplate),
     [kind]
@@ -57,11 +65,14 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
     };
   }, []);
 
-  // Inicializa o controller legado apos o template estar montado.
+  // Injeta o template e inicializa o controller legado uma única vez por kind.
   useEffect(() => {
     if (!user || !leafletReady || !approved) return undefined;
     const container = containerRef.current;
     if (!container) return undefined;
+
+    // Set innerHTML imperativamente para que React nunca o reescreva.
+    container.innerHTML = template;
 
     function handleLocalLinks(event: MouseEvent) {
       const target = event.target as HTMLElement | null;
@@ -70,20 +81,23 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
       const href = link.getAttribute("href");
       if (href === "/menu" || href === "/checklist" || href === "/checklist-simples" || href === "/") {
         event.preventDefault();
-        tanstackNavigate({ to: href });
+        navigateRef.current({ to: href });
       }
     }
-
     container.addEventListener("click", handleLocalLinks);
 
-    const legacyNavigate = (path: string) => {
-      tanstackNavigate({ to: path });
-    };
+    const legacyNavigate = (path: string) => navigateRef.current({ to: path });
+    const legacySignOut = () => signOutRef.current();
 
-    const cleanup =
-      kind === "simples"
-        ? initChecklistSimplesController({ user, navigate: legacyNavigate, signOut })
-        : initChecklistController({ user, navigate: legacyNavigate, signOut });
+    let cleanup: (() => void) | undefined;
+    try {
+      cleanup =
+        kind === "simples"
+          ? initChecklistSimplesController({ user, navigate: legacyNavigate, signOut: legacySignOut })
+          : initChecklistController({ user, navigate: legacyNavigate, signOut: legacySignOut });
+    } catch (err) {
+      console.error("[ChecklistView] init falhou", err);
+    }
 
     // Esconder Baixar PDF para executante
     if (role === "executante") {
@@ -106,8 +120,10 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
     return () => {
       container.removeEventListener("click", handleLocalLinks);
       if (typeof cleanup === "function") cleanup();
+      setHeaderSlot(null);
+      container.innerHTML = "";
     };
-  }, [kind, user, leafletReady, signOut, tanstackNavigate, role, approved]);
+  }, [kind, user?.id, leafletReady, approved, role, template]);
 
   if (loading || roleLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/" replace />;
@@ -115,12 +131,7 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
 
   return (
     <>
-      <div
-        key={kind}
-        ref={containerRef}
-        className="legacy-checklist-page"
-        dangerouslySetInnerHTML={{ __html: template }}
-      />
+      <div key={kind} ref={containerRef} className="legacy-checklist-page" />
       {headerSlot ? createPortal(<UserMenu />, headerSlot) : null}
     </>
   );

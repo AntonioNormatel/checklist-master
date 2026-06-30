@@ -60,13 +60,32 @@ export const approveUser = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin
+
+    // Verifica se ja existe algum papel para o usuario
+    const { data: existing, error: selErr } = await supabaseAdmin
       .from("user_roles")
-      .update({ approved: data.approved })
+      .select("id, role, approved")
       .eq("user_id", data.userId);
-    if (error) throw error;
+    if (selErr) throw selErr;
+
+    if (!existing || existing.length === 0) {
+      // Cria papel padrao 'executante' com o status solicitado
+      const { error } = await supabaseAdmin.from("user_roles").insert({
+        user_id: data.userId,
+        role: "executante",
+        approved: data.approved,
+      });
+      if (error) throw error;
+    } else {
+      const { error } = await supabaseAdmin
+        .from("user_roles")
+        .update({ approved: data.approved })
+        .eq("user_id", data.userId);
+      if (error) throw error;
+    }
     return { ok: true };
   });
+
 
 export const deleteUserAccount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
