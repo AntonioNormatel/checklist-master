@@ -58,6 +58,10 @@ function MenuPage() {
   const navigate = useNavigate();
   const [supportOpen, setSupportOpen] = useState(false);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, []);
+
   if (loading || roleLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/" replace />;
 
