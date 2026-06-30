@@ -45,6 +45,10 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
 
   // Carrega Leaflet e CSS apenas no client (o controller usa window.L).
   useEffect(() => {
+    if (typeof window !== "undefined" && (window as any).L) {
+      setLeafletReady(true);
+      return;
+    }
     let active = true;
     (async () => {
       try {
@@ -64,6 +68,11 @@ export default function ChecklistView({ kind }: { kind: Kind }) {
       active = false;
     };
   }, []);
+
+  // Sempre comeca no topo ao entrar na rota
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, [kind]);
 
   // Atualiza apenas a classe quando o role muda (sem re-inicializar tudo).
   useEffect(() => {
